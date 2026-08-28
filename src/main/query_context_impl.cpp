@@ -317,6 +317,9 @@ QueryResult QueryContext::QueryStatementInternal(const BaseStatement *base_state
                     this->RollbackTxn();
                 } catch (std::exception &rollback_e) {
                     LOG_CRITICAL(rollback_e.what());
+                    // The rollback did not reach its own ResetNewTxn: drop the session's
+                    // reference so the next statement cannot reuse the broken transaction.
+                    session_ptr_->ResetNewTxn();
                 }
             }
             StopProfile(QueryPhase::kRollback);
