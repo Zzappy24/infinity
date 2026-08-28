@@ -305,10 +305,24 @@ QueryResult QueryContext::QueryStatementInternal(const BaseStatement *base_state
         query_result.status_.Init(ErrorCode::kParserError, e.what());
 
     } catch (UnrecoverableException &e) {
-        printf("UnrecoverableException %s\n", e.what());
         LOG_CRITICAL(e.what());
-        raise(SIGUSR1);
-        //        throw e;
+
+        NewTxn *new_txn = this->GetNewTxn();
+        if (new_txn != nullptr) {
+            StopProfile();
+            StartProfile(QueryPhase::kRollback);
+            TxnState txn_state = new_txn->GetTxnState();
+            if (txn_state == TxnState::kRollbacking or txn_state == TxnState::kStarted) {
+                try {
+                    this->RollbackTxn();
+                } catch (std::exception &rollback_e) {
+                    LOG_CRITICAL(rollback_e.what());
+                }
+            }
+            StopProfile(QueryPhase::kRollback);
+        }
+        query_result.result_table_ = nullptr;
+        query_result.status_.Init(ErrorCode::kUnexpectedError, e.what());
     }
 
     //    ProfilerStop();
