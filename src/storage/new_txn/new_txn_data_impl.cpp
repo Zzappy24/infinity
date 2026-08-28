@@ -1758,7 +1758,10 @@ Status NewTxn::PrepareCommitImport(WalCmdImportV2 *import_cmd) {
                 return index_status;
             }
             if (index_base->index_type_ == IndexType::kFullText) {
-                table_meta.InvalidateFtIndexCache();
+                status = table_meta.InvalidateFtIndexCache();
+                if (!status.ok()) {
+                    return status;
+                }
                 break;
             }
         }
@@ -2102,7 +2105,10 @@ Status NewTxn::PrepareCommitCompact(WalCmdCompactV2 *compact_cmd) {
                 // store, not by a WalCmdDumpIndexV2, so the invalidation in
                 // PrepareCommitDumpIndex never fires here: without this, cached readers keep
                 // serving the deprecated segments and never see the compacted one.
-                table_meta.InvalidateFtIndexCache();
+                status = table_meta.InvalidateFtIndexCache();
+                if (!status.ok()) {
+                    return status;
+                }
                 ft_index_cache_invalidated = true;
             }
 
