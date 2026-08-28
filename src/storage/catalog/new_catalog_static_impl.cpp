@@ -1138,6 +1138,21 @@ Status NewCatalog::CleanChunkIndex(ChunkIndexMeta &chunk_index_meta, UsageFlag u
                           chunk_index_meta.segment_index_meta().segment_id(),
                           chunk_index_meta.segment_index_meta().table_index_meta().index_id_str(),
                           chunk_index_meta.chunk_id()));
+    if (usage_flag != UsageFlag::kTransform) {
+        // Invalidate the fulltext index reader cache before the chunk's data
+        // (posting/dictionary files, column-length buffer) is physically
+        // destroyed below. CleanSegmentIndex already does this, but chunk-level
+        // cleanups (the normal path for merged-away fulltext chunks) did not:
+        // TableIndexReaderCache::GetIndexReader would keep serving cached
+        // DiskIndexSegmentReaders and raw BufferObj pointers over freed data,
+        // and the first fulltext query after the cleanup commit crashed the
+        // server in the posting decoder (see issue #3418).
+        TableMeta &table_meta = chunk_index_meta.segment_index_meta().table_index_meta().table_meta();
+        Status invalidate_status = table_meta.InvalidateFtIndexCache();
+        if (!invalidate_status.ok()) {
+            return invalidate_status;
+        }
+    }
     chunk_index_meta.RestoreSet();
     Status status;
 
